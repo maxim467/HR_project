@@ -210,10 +210,28 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
             Mat roi = mRgba.submat(facesArray[i]);
             
             Imgproc.cvtColor(roi,imgYCC,Imgproc.COLOR_RGB2YCrCb);
-            Core.inRange(imgYCC, new Scalar(0,133,77), new Scalar(255,173,127), skinRegion);
-            Imgproc.findContours(skinRegion,contours,hierarchy,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_SIMPLE);
-            //Imgproc.drawContours(mRgba, contours, -1, new Scalar(255,0,0), 1);
-            //, 8, hierarchy, 1, new Point(x,y));
+            Core.inRange(imgYCC, new Scalar(50,133,77), new Scalar(200,173,127), skinRegion);
+            Imgproc.findContours(skinRegion,contours,hierarchy,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_NONE);
+            
+            
+            double maxArea=0;
+        	int maxAreaIdx=0;
+        	
+            for (int idx = 0; idx < contours.size(); ++idx)
+            {
+                Mat contour = contours.get(idx);
+                double contourarea = Imgproc.contourArea(contour);
+                Log.i(TAG, "maxAreaIdx =" + idx + "contourarea = " + contourarea);
+                if (contourarea > maxArea)
+                {
+                    maxArea = contourarea;
+                    maxAreaIdx = idx;
+                }
+
+            }
+
+            Imgproc.drawContours(roi, contours, maxAreaIdx, new Scalar(255,0,0), 2);
+             
             
         }
         return mRgba;
