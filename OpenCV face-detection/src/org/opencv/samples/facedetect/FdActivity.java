@@ -4,14 +4,18 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Vector;
 
 import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.core.Core;
+import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfRect;
+import org.opencv.core.MatOfPoint;	
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
 import org.opencv.core.Size;
@@ -31,7 +35,7 @@ import android.view.WindowManager;
 public class FdActivity extends Activity implements CvCameraViewListener2 {
 
     private static final String    TAG                 = "OCVSample::Activity";
-    private static final Scalar    FACE_RECT_COLOR     = new Scalar(255, 0, 0, 255);
+    private static final Scalar    FACE_RECT_COLOR     = new Scalar(0, 0, 255, 255);
     public static final int        JAVA_DETECTOR       = 0;
     public static final int        NATIVE_DETECTOR     = 1;
 //
@@ -43,6 +47,9 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
 
     private Mat                    mRgba;
     private Mat                    mGray;
+    private Mat 				   imgYCC;
+    private Mat					   skinRegion;
+    private Mat                    roi;
     private File                   mCascadeFile;
     private CascadeClassifier      mJavaDetector;
     private DetectionBasedTracker  mNativeDetector;
@@ -157,11 +164,15 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
     public void onCameraViewStarted(int width, int height) {
         mGray = new Mat();
         mRgba = new Mat();
+        imgYCC= new Mat();
+        skinRegion=new Mat();
+        roi=new Mat();
     }
 
     public void onCameraViewStopped() {
         mGray.release();
         mRgba.release();
+        imgYCC.release();
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
@@ -191,19 +202,28 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         else {
             Log.e(TAG, "Detection method is not selected!");
         }
-
+        ArrayList<MatOfPoint> contours = new ArrayList<MatOfPoint>();
+        Mat hierarchy = new Mat(new Size(576,648),CvType.CV_8UC1,new Scalar(0));
         Rect[] facesArray = faces.toArray();
-        for (int i = 0; i < facesArray.length; i++)
+        for (int i = 0; i < facesArray.length; i++){
             Imgproc.rectangle(mRgba, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
-
+            Mat roi = mRgba.submat(facesArray[i]);
+            
+            Imgproc.cvtColor(roi,imgYCC,Imgproc.COLOR_RGB2YCrCb);
+            Core.inRange(imgYCC, new Scalar(0,133,77), new Scalar(255,173,127), skinRegion);
+            Imgproc.findContours(skinRegion,contours,hierarchy,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_SIMPLE);
+            //Imgproc.drawContours(mRgba, contours, -1, new Scalar(255,0,0), 1);
+            //, 8, hierarchy, 1, new Point(x,y));
+            
+        }
         return mRgba;
     }
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
         Log.i(TAG, "called onCreateOptionsMenu");
-        mItemFace50 = menu.add("Face size 50%");
-        mItemFace40 = menu.add("Face size 40%");
+       // mItemFace50 = menu.add("Face size 50%");
+       // mItemFace40 = menu.add("Face size 40%");
         mItemFace30 = menu.add("Face size 30%");
         mItemFace20 = menu.add("Face size 20%");
         mItemType   = menu.add(mDetectorName[mDetectorType]);
