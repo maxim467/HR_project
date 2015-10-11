@@ -208,6 +208,25 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         for (int i = 0; i < facesArray.length; i++){
             Imgproc.rectangle(mRgba, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
             Mat roi = mRgba.submat(facesArray[i]);
+          
+            
+            double contador=0;
+            double sumatorio=0;
+            
+           for(int r=0; r<roi.cols(); r++){
+        	   for(int q=0; q<roi.rows(); q++){
+        		   
+        		  double[] m = roi.get(r, q);
+        		  sumatorio=sumatorio + m[1];
+        		  
+        	      // Log.i(TAG, "Color: "+ m[1] +""); //Esto nos da el valor de G del píxel (r,q) en este caso
+        		  contador++;
+        	   }
+           }
+          
+            double media=(sumatorio/contador);
+         Log.i(TAG, "VALOR_averageG: "+ media +"");   //Esto nos da el valor de media (G) de la roi.
+     
             
             Imgproc.cvtColor(roi,imgYCC,Imgproc.COLOR_RGB2YCrCb);
             Core.inRange(imgYCC, new Scalar(50,133,77), new Scalar(200,173,127), skinRegion);
