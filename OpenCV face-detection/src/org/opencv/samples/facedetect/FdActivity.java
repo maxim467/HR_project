@@ -46,6 +46,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
     private MenuItem               mItemType;
 
     private Mat                    mRgba;
+    private Mat                    mRgbaresize;
     private Mat                    mGray;
     private Mat 				   imgYCC;
     private Mat					   skinRegion;
@@ -59,7 +60,9 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
 
     private float                  mRelativeFaceSize   = 0.2f;
     private int                    mAbsoluteFaceSize   = 0;
-
+    Vector<Double> signalwDC =new Vector<Double>();
+    Vector<Double> signal_normalized =new Vector<Double>();
+    Complex[] u;
     private CameraBridgeViewBase   mOpenCvCameraView;
 
     private BaseLoaderCallback  mLoaderCallback = new BaseLoaderCallback(this) {
@@ -69,6 +72,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
                 case LoaderCallbackInterface.SUCCESS:
                 {
                     Log.i(TAG, "OpenCV loaded successfully");
+                    
 
                     // Load native library after(!) OpenCV initialization
                     System.loadLibrary("detection_based_tracker");
@@ -103,8 +107,13 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
                         e.printStackTrace();
                         Log.e(TAG, "Failed to load cascade. Exception thrown: " + e);
                     }
-
+                    mOpenCvCameraView.setMaxFrameSize( 640, 480);
                     mOpenCvCameraView.enableView();
+                    
+                    mOpenCvCameraView.enableFpsMeter();
+                    //double fps=mOpenCvCameraView.get(CV_CAP_PROP_FPS);
+                    
+                    
                 } break;
                 default:
                 {
@@ -164,6 +173,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
     public void onCameraViewStarted(int width, int height) {
         mGray = new Mat();
         mRgba = new Mat();
+        mRgbaresize = new Mat();
         imgYCC= new Mat();
         skinRegion=new Mat();
         roi=new Mat();
@@ -202,37 +212,50 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         else {
             Log.e(TAG, "Detection method is not selected!");
         }
-        ArrayList<MatOfPoint> contours = new ArrayList<MatOfPoint>();
-        Mat hierarchy = new Mat(new Size(576,648),CvType.CV_8UC1,new Scalar(0));
-        Rect[] facesArray = faces.toArray();
-        for (int i = 0; i < facesArray.length; i++){
+       // ArrayList<MatOfPoint> contours = new ArrayList<MatOfPoint>();  //Aquí almacenaremos los contornos
+       // Mat hierarchy = new Mat(new Size(576,648),CvType.CV_8UC1,new Scalar(0)); 
+        Rect[] facesArray = faces.toArray();        
+       
+        
+        for (int i = 0; i < facesArray.length; i++){			// recorremos el array faces
             Imgproc.rectangle(mRgba, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
-            Mat roi = mRgba.submat(facesArray[i]);
+            Mat roi = mRgba.submat(facesArray[i]);           //seleccionamos la roi
           
+            
+            
+            
+           //Aquí empieza el calculo de la media del canal G
             
             double contador=0;
             double sumatorio=0;
             
+            
+           
            for(int r=0; r<roi.cols(); r++){
         	   for(int q=0; q<roi.rows(); q++){
         		   
         		  double[] m = roi.get(r, q);
-        		  sumatorio=sumatorio + m[1];
+        		  sumatorio=sumatorio + m[1];   //m[1] se refiere al canal G 
         		  
-        	      // Log.i(TAG, "Color: "+ m[1] +""); //Esto nos da el valor de G del píxel (r,q) en este caso
+        	      
         		  contador++;
         	   }
            }
           
-            double media=(sumatorio/contador);
-         Log.i(TAG, "VALOR_averageG: "+ media +"");   //Esto nos da el valor de media (G) de la roi.
-     
+         double media=(sumatorio/contador);
+         Log.i(TAG, "VALOR_averageG: "+ media +"");   //Esto nos da el valor de media (G) de la roi por frame.
+         signalwDC.add(media);						  //Lo almacenamos en el vector signalwDC (señal con DC)
+         
+         
+         //Detección de la piel
             
-            Imgproc.cvtColor(roi,imgYCC,Imgproc.COLOR_RGB2YCrCb);
-            Core.inRange(imgYCC, new Scalar(50,133,77), new Scalar(200,173,127), skinRegion);
-            Imgproc.findContours(skinRegion,contours,hierarchy,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_NONE);
+           // Imgproc.cvtColor(roi,imgYCC,Imgproc.COLOR_RGB2YCrCb);
+           // Core.inRange(imgYCC, new Scalar(50,133,77), new Scalar(200,173,127), skinRegion);
+           // Imgproc.findContours(skinRegion,contours,hierarchy,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_NONE);
             
+            // Selección del contorno con mayor área
             
+         /*
             double maxArea=0;
         	int maxAreaIdx=0;
         	
@@ -249,18 +272,64 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
 
             }
 
-            Imgproc.drawContours(roi, contours, maxAreaIdx, new Scalar(255,0,0), 2);
+            //Imgproc.drawContours(roi, contours, maxAreaIdx, new Scalar(255,0,0), 2);
              
-            
+            */
         }
+        if (signalwDC.size()>15) {					//Si la señal contiene 25 elementos.. 
+        	double sumatorio_vector=0;  
+        	double contador_vector=0;
+        	double val_norm=0;
+        	
+        	Complex[] a = new Complex[16];
+        	
+        	
+        	
+        		for(int l=0; l<signalwDC.size(); l++){   //En este for calculamos la media de la señal con DC
+        		
+        		sumatorio_vector= sumatorio_vector + signalwDC.elementAt(l);
+        		contador_vector++;
+        		
+        		}
+        		
+        		double media_vector=(sumatorio_vector/contador_vector);  //En media_vector almacenamos el valor medio de la señal con DC
+        		Log.i(TAG, "VALOR_med_vec:"+ media_vector +"");
+        		
+        		
+        		//Complex xx=new Complex(signalwDC.elementAt(3),0.0);
+        		for(int o=0;o< signalwDC.size();o++){          //En este for tratamos de eliminar la DC,lo que hacemos es restar la media 
+        													   // a los componentes del vector
+        			val_norm=signalwDC.get(o)-media_vector;
+        			signal_normalized.add(val_norm);
+        			Log.i(TAG, "VALOR_med_vec_norm:"+signal_normalized.elementAt(o) +"");  //la señal sin DC la almacenamos en signal_normalized
+        			
+        			a[o] =new Complex(signal_normalized.elementAt(o),0.0);
+        			
+        			 
+        			
+        			 
+        		}
+        		
+        		u=FFT.fft(a);
+        		Log.i(TAG, "fft:resu:"+u[2] +"");
+        		
+        	
+        	signalwDC.removeAllElements();
+        	signal_normalized.removeAllElements();
+        	
+        	 }
         return mRgba;
     }
 
-    @Override
+    
+    
+    
+
+	@Override
     public boolean onCreateOptionsMenu(Menu menu) {
         Log.i(TAG, "called onCreateOptionsMenu");
-       // mItemFace50 = menu.add("Face size 50%");
-       // mItemFace40 = menu.add("Face size 40%");
+        mItemFace50 = menu.add("Face size 50%");
+        mItemFace40 = menu.add("Face size 40%");
         mItemFace30 = menu.add("Face size 30%");
         mItemFace20 = menu.add("Face size 20%");
         mItemType   = menu.add(mDetectorName[mDetectorType]);
