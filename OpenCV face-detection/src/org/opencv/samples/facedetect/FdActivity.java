@@ -15,6 +15,7 @@ import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfRect;
+import org.opencv.core.Point;
 import org.opencv.core.MatOfPoint;	
 import org.opencv.core.Rect;
 import org.opencv.core.Scalar;
@@ -51,6 +52,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
     private Mat 				   imgYCC;
     private Mat					   skinRegion;
     private Mat                    roi;
+    private Mat                    tmp;
     private File                   mCascadeFile;
     private CascadeClassifier      mJavaDetector;
     private DetectionBasedTracker  mNativeDetector;
@@ -60,8 +62,10 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
 
     private float                  mRelativeFaceSize   = 0.2f;
     private int                    mAbsoluteFaceSize   = 0;
+    private Rect                   eyearea = new Rect();
     Vector<Double> signalwDC =new Vector<Double>();
     Vector<Double> signal_normalized =new Vector<Double>();
+    Vector<Double> spam =new Vector<Double>();
     Complex[] u;
     private CameraBridgeViewBase   mOpenCvCameraView;
 
@@ -107,11 +111,12 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
                         e.printStackTrace();
                         Log.e(TAG, "Failed to load cascade. Exception thrown: " + e);
                     }
-                    mOpenCvCameraView.setMaxFrameSize( 640, 480);
+                    mOpenCvCameraView.setMaxFrameSize(640,480);
                     mOpenCvCameraView.enableView();
                     
+                    
                     mOpenCvCameraView.enableFpsMeter();
-                    //double fps=mOpenCvCameraView.get(CV_CAP_PROP_FPS);
+                    
                     
                     
                 } break;
@@ -177,6 +182,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         imgYCC= new Mat();
         skinRegion=new Mat();
         roi=new Mat();
+        tmp=new Mat();
     }
 
     public void onCameraViewStopped() {
@@ -193,7 +199,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         if (mAbsoluteFaceSize == 0) {
             int height = mGray.rows();
             if (Math.round(height * mRelativeFaceSize) > 0) {
-                mAbsoluteFaceSize = Math.round(height * mRelativeFaceSize);
+                mAbsoluteFaceSize = Math.round(height * (mRelativeFaceSize));
             }
             mNativeDetector.setMinFaceSize(mAbsoluteFaceSize);
         }
@@ -217,32 +223,31 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         Rect[] facesArray = faces.toArray();        
        
         
+        
         for (int i = 0; i < facesArray.length; i++){			// recorremos el array faces
-            Imgproc.rectangle(mRgba, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
-            Mat roi = mRgba.submat(facesArray[i]);           //seleccionamos la roi
-          
-            
-            
-            
-           //Aquí empieza el calculo de la media del canal G
-            
-            double contador=0;
-            double sumatorio=0;
-            
+        	//facesArray[i].
+            //Imgproc.rectangle(mRgba, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
+             
+            eyearea = new Rect(facesArray[i].x+facesArray[i].width-3*facesArray[i].width/4, facesArray[i].y, facesArray[i].width-2*facesArray[i].width/4, facesArray[i].height-2*facesArray[i].height/3);
+            Imgproc.rectangle(mRgba,eyearea.tl(),eyearea.br() , new Scalar(255,0, 0, 255), 2);
+           
+             roi = mRgba.submat(eyearea);           //seleccionamos la roi
             
            
-           for(int r=0; r<roi.cols(); r++){
-        	   for(int q=0; q<roi.rows(); q++){
-        		   
-        		  double[] m = roi.get(r, q);
-        		  sumatorio=sumatorio + m[1];   //m[1] se refiere al canal G 
-        		  
-        	      
-        		  contador++;
-        	   }
-           }
+            //Imgproc.cvtColor(roi, tmp, Imgproc.COLOR_RGBA2GRAY); //make it gray
+           // Imgproc.cvtColor(tmp, roi, Imgproc.COLOR_GRAY2RGBA); //change to rgb
+            
+            
+            
           
-         double media=(sumatorio/contador);
+            
+            
+            double media=0;
+            
+            
+         
+         
+            media=ROI.do_ROI(roi);
          Log.i(TAG, "VALOR_averageG: "+ media +"");   //Esto nos da el valor de media (G) de la roi por frame.
          signalwDC.add(media);						  //Lo almacenamos en el vector signalwDC (señal con DC)
          
@@ -276,12 +281,19 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
              
             */
         }
-        if (signalwDC.size()>15) {					//Si la señal contiene 25 elementos.. 
+        if (signalwDC.size()>63) {					//Si la señal contiene 25 elementos.. 
         	double sumatorio_vector=0;  
         	double contador_vector=0;
         	double val_norm=0;
+        	double mMaxFFTSample=0;
+        	int mPeakPos=0;
         	
-        	Complex[] a = new Complex[16];
+        	Complex[] a = new Complex[64];
+        	double[] absSignal = new double[64/2];
+        	double[] bpm_vector = new double[64/2];
+        	double[] bpm = new double[64];
+        	double pre_bpm=0;
+        	
         	
         	
         	
@@ -296,7 +308,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         		Log.i(TAG, "VALOR_med_vec:"+ media_vector +"");
         		
         		
-        		//Complex xx=new Complex(signalwDC.elementAt(3),0.0);
+        		
         		for(int o=0;o< signalwDC.size();o++){          //En este for tratamos de eliminar la DC,lo que hacemos es restar la media 
         													   // a los componentes del vector
         			val_norm=signalwDC.get(o)-media_vector;
@@ -305,17 +317,45 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         			
         			a[o] =new Complex(signal_normalized.elementAt(o),0.0);
         			
+        			
         			 
         			
         			 
         		}
         		
-        		u=FFT.fft(a);
-        		Log.i(TAG, "fft:resu:"+u[2] +"");
+        			u=FFT.fft(a);
+        			for(int z=0;z<64;z++){
+        				
+                		pre_bpm=z*(8/64);
+                		bpm[5]=pre_bpm;
+                		
+                		Log.i(TAG, "POSPIK:" +bpm[8]+"");
+                		
+                	}
+        			//Log.i(TAG, "POSPIK:" +60*bpm[15]+"");
         		
-        	
-        	signalwDC.removeAllElements();
-        	signal_normalized.removeAllElements();
+        			for(int m = 0; m < (64/2); m++)
+        				{	
+        				 
+        					absSignal[m] = Math.sqrt(Math.pow(u[m].re(), 2) + Math.pow(u[m].im(), 2));
+        					
+        					
+        		             
+        						bpm_vector[m]=absSignal[m];
+        						Log.i(TAG, "FFTValores:"+bpm_vector[m]*60+"");
+        						if(absSignal[m]>mMaxFFTSample){
+        		                 mMaxFFTSample = absSignal[m];
+        		                 mPeakPos = m;
+        		             } 
+        					
+        				}
+        			
+        			
+        			
+        			
+        			signalwDC.removeAllElements();
+        			signal_normalized.removeAllElements();
+        			
         	
         	 }
         return mRgba;
