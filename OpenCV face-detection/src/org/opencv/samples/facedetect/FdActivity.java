@@ -23,6 +23,7 @@ import org.opencv.core.Size;
 import org.opencv.android.CameraBridgeViewBase;
 import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
 import org.opencv.objdetect.CascadeClassifier;
+import org.opencv.videoio.Videoio;
 import org.opencv.imgproc.Imgproc;
 
 import android.app.Activity;
@@ -111,12 +112,13 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
                         e.printStackTrace();
                         Log.e(TAG, "Failed to load cascade. Exception thrown: " + e);
                     }
+                    
                     mOpenCvCameraView.setMaxFrameSize(640,480);
+                    
                     mOpenCvCameraView.enableView();
-                    
-                    
+                      
                     mOpenCvCameraView.enableFpsMeter();
-                    
+                    //double fps = mOpenCvCameraView.get(Videoio.CAP_PROP_FPS);                 
                     
                     
                 } break;
@@ -228,14 +230,14 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         	//facesArray[i].
             //Imgproc.rectangle(mRgba, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
              
-            eyearea = new Rect(facesArray[i].x+facesArray[i].width-3*facesArray[i].width/4, facesArray[i].y, facesArray[i].width-2*facesArray[i].width/4, facesArray[i].height-2*facesArray[i].height/3);
+            eyearea = new Rect(facesArray[i].x+facesArray[i].width-3*facesArray[i].width/4, facesArray[i].y, facesArray[i].width-2*facesArray[i].width/4, facesArray[i].height-3*facesArray[i].height/4);
             Imgproc.rectangle(mRgba,eyearea.tl(),eyearea.br() , new Scalar(255,0, 0, 255), 2);
            
              roi = mRgba.submat(eyearea);           //seleccionamos la roi
             
            
             //Imgproc.cvtColor(roi, tmp, Imgproc.COLOR_RGBA2GRAY); //make it gray
-           // Imgproc.cvtColor(tmp, roi, Imgproc.COLOR_GRAY2RGBA); //change to rgb
+            //Imgproc.cvtColor(tmp, roi, Imgproc.COLOR_GRAY2RGBA); //change to rgb
             
             
             
@@ -281,17 +283,17 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
              
             */
         }
-        if (signalwDC.size()>63) {					//Si la señal contiene 25 elementos.. 
+        if (signalwDC.size()>255) {					//Si la señal contiene 25 elementos.. 
         	double sumatorio_vector=0;  
         	double contador_vector=0;
         	double val_norm=0;
         	double mMaxFFTSample=0;
         	int mPeakPos=0;
         	
-        	Complex[] a = new Complex[64];
-        	double[] absSignal = new double[64/2];
-        	double[] bpm_vector = new double[64/2];
-        	double[] bpm = new double[64];
+        	Complex[] a = new Complex[256];
+        	double[] absSignal = new double[256/2];
+        	double[] bpm_vector = new double[256/2];
+        	double[] bpm = new double[256];
         	double pre_bpm=0;
         	
         	
@@ -324,17 +326,19 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         		}
         		
         			u=FFT.fft(a);
-        			for(int z=0;z<64;z++){
+        			for(int z=0;z<256;z++){
         				
-                		pre_bpm=z*(8/64);
-                		bpm[5]=pre_bpm;
+                		pre_bpm=60.0*z*(8/256.0);     // 60*(N(i))*(FPS/N)
                 		
-                		Log.i(TAG, "POSPIK:" +bpm[8]+"");
+                		spam.add(pre_bpm);
+                		
+                		
                 		
                 	}
+        			
         			//Log.i(TAG, "POSPIK:" +60*bpm[15]+"");
         		
-        			for(int m = 0; m < (64/2); m++)
+        			for(int m = 0; m < (256/2); m++)
         				{	
         				 
         					absSignal[m] = Math.sqrt(Math.pow(u[m].re(), 2) + Math.pow(u[m].im(), 2));
@@ -342,7 +346,8 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         					
         		             
         						bpm_vector[m]=absSignal[m];
-        						Log.i(TAG, "FFTValores:"+bpm_vector[m]*60+"");
+        						Log.i(TAG, "FFTValores:"+absSignal[m]+"");
+        						
         						if(absSignal[m]>mMaxFFTSample){
         		                 mMaxFFTSample = absSignal[m];
         		                 mPeakPos = m;
@@ -350,11 +355,15 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         					
         				}
         			
+        			Log.i(TAG, "BPM:" +spam.elementAt(mPeakPos)+"");
+        			mPeakPos=0;
+        			mMaxFFTSample=0;
         			
         			
         			
         			signalwDC.removeAllElements();
         			signal_normalized.removeAllElements();
+        			spam.removeAllElements();
         			
         	
         	 }
