@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Vector;
 
 import org.opencv.android.BaseLoaderCallback;
@@ -33,6 +34,7 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.WindowManager;
+import android.widget.TextView;
 
 public class FdActivity extends Activity implements CvCameraViewListener2 {
 
@@ -64,6 +66,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
     private float                  mRelativeFaceSize   = 0.2f;
     private int                    mAbsoluteFaceSize   = 0;
     private Rect                   eyearea = new Rect();
+     long lStartTime=0;
     Vector<Double> signalwDC =new Vector<Double>();
     Vector<Double> signal_normalized =new Vector<Double>();
     Vector<Double> spam =new Vector<Double>();
@@ -118,7 +121,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
                     mOpenCvCameraView.enableView();
                       
                     mOpenCvCameraView.enableFpsMeter();
-                    //double fps = mOpenCvCameraView.get(Videoio.CAP_PROP_FPS);                 
+                                 
                     
                     
                 } break;
@@ -194,7 +197,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
     }
 
     public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
-
+    	
         mRgba = inputFrame.rgba();
         mGray = inputFrame.gray();
 
@@ -222,9 +225,10 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         }
        // ArrayList<MatOfPoint> contours = new ArrayList<MatOfPoint>();  //Aquí almacenaremos los contornos
        // Mat hierarchy = new Mat(new Size(576,648),CvType.CV_8UC1,new Scalar(0)); 
+       
         Rect[] facesArray = faces.toArray();        
        
-        
+       
         
         for (int i = 0; i < facesArray.length; i++){			// recorremos el array faces
         	//facesArray[i].
@@ -257,7 +261,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
          //Detección de la piel
             
            // Imgproc.cvtColor(roi,imgYCC,Imgproc.COLOR_RGB2YCrCb);
-           // Core.inRange(imgYCC, new Scalar(50,133,77), new Scalar(200,173,127), skinRegion);
+           // Core.inRange(imgYCC, new Scalar(50,133,77), new Scalar(200,173,7), skinRegion);
            // Imgproc.findContours(skinRegion,contours,hierarchy,Imgproc.RETR_TREE,Imgproc.CHAIN_APPROX_NONE);
             
             // Selección del contorno con mayor área
@@ -283,17 +287,26 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
              
             */
         }
-        if (signalwDC.size()>255) {					//Si la señal contiene 25 elementos.. 
+        
+        if (signalwDC.size()>127) {					//Si la señal contiene 25 elementos.. 
+        	long lEndTime = System.nanoTime();
+	    	long difference_sec = lEndTime - lStartTime;
+	    	Log.i(TAG, "TIME:"+(difference_sec/1000000000.0));
+        	
+            double time= difference_sec/1000000000.0;
+        	
+        
+        	Log.i(TAG, "TEST:" );
         	double sumatorio_vector=0;  
         	double contador_vector=0;
         	double val_norm=0;
         	double mMaxFFTSample=0;
         	int mPeakPos=0;
         	
-        	Complex[] a = new Complex[256];
-        	double[] absSignal = new double[256/2];
-        	double[] bpm_vector = new double[256/2];
-        	double[] bpm = new double[256];
+        	Complex[] a = new Complex[128];
+        	double[] absSignal = new double[128/2];
+        	double[] bpm_vector = new double[128/2];
+        	double[] bpm = new double[128];
         	double pre_bpm=0;
         	
         	
@@ -326,9 +339,13 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         		}
         		
         			u=FFT.fft(a);
-        			for(int z=0;z<256;z++){
+        			
+        			
+        			double fps=128.0/time;  //FPS --> frame/seconds
+        			Log.i(TAG, "pruebaaa:" +fps);
+        			for(int z=0;z<128;z++){
         				
-                		pre_bpm=60.0*z*(8/256.0);     // 60*(N(i))*(FPS/N)
+                		pre_bpm=60.0*z*(fps/128.0);     // 60*(N(i))*(FPS/N)
                 		
                 		spam.add(pre_bpm);
                 		
@@ -338,7 +355,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         			
         			//Log.i(TAG, "POSPIK:" +60*bpm[15]+"");
         		
-        			for(int m = 0; m < (256/2); m++)
+        			for(int m = 0; m < (128/2); m++)
         				{	
         				 
         					absSignal[m] = Math.sqrt(Math.pow(u[m].re(), 2) + Math.pow(u[m].im(), 2));
@@ -348,16 +365,22 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         						bpm_vector[m]=absSignal[m];
         						Log.i(TAG, "FFTValores:"+absSignal[m]+"");
         						
-        						if(absSignal[m]>mMaxFFTSample){
+        						if(absSignal[m]>mMaxFFTSample && m>8 && m<20){
         		                 mMaxFFTSample = absSignal[m];
         		                 mPeakPos = m;
+        		                 
         		             } 
-        					
+        						
+        					absSignal[m]=0;
         				}
         			
         			Log.i(TAG, "BPM:" +spam.elementAt(mPeakPos)+"");
+        			
+        	        
+        	        
         			mPeakPos=0;
         			mMaxFFTSample=0;
+        			
         			
         			
         			
@@ -365,9 +388,13 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         			signal_normalized.removeAllElements();
         			spam.removeAllElements();
         			
+        			 lStartTime = System.nanoTime();
         	
         	 }
+        
         return mRgba;
+        
+    	
     }
 
     
