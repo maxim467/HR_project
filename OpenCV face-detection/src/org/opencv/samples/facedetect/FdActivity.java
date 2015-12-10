@@ -35,6 +35,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.WindowManager;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class FdActivity extends Activity implements CvCameraViewListener2 {
 
@@ -42,7 +43,8 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
     private static final Scalar    FACE_RECT_COLOR     = new Scalar(0, 0, 255, 255);
     public static final int        JAVA_DETECTOR       = 0;
     public static final int        NATIVE_DETECTOR     = 1;
-//
+   
+    public   double				    bpm_final1=0;
     private MenuItem               mItemFace50;
     private MenuItem               mItemFace40;
     private MenuItem               mItemFace30;
@@ -234,7 +236,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         	//facesArray[i].
             //Imgproc.rectangle(mRgba, facesArray[i].tl(), facesArray[i].br(), FACE_RECT_COLOR, 3);
              
-            eyearea = new Rect(facesArray[i].x+facesArray[i].width-3*facesArray[i].width/4, facesArray[i].y, facesArray[i].width-2*facesArray[i].width/4, facesArray[i].height-3*facesArray[i].height/4);
+            eyearea = new Rect(facesArray[i].x*(9/8)+facesArray[i].width-3*facesArray[i].width/4, facesArray[i].y*(3/2), facesArray[i].width-2*facesArray[i].width/4, facesArray[i].height-4*facesArray[i].height/5);
             Imgproc.rectangle(mRgba,eyearea.tl(),eyearea.br() , new Scalar(255,0, 0, 255), 2);
            
              roi = mRgba.submat(eyearea);           //seleccionamos la roi
@@ -288,7 +290,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
             */
         }
         
-        if (signalwDC.size()>127) {					//Si la señal contiene 25 elementos.. 
+        if (signalwDC.size()>511) {					//Si la señal contiene 25 elementos.. 
         	long lEndTime = System.nanoTime();
 	    	long difference_sec = lEndTime - lStartTime;
 	    	Log.i(TAG, "TIME:"+(difference_sec/1000000000.0));
@@ -303,10 +305,10 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         	double mMaxFFTSample=0;
         	int mPeakPos=0;
         	
-        	Complex[] a = new Complex[128];
-        	double[] absSignal = new double[128/2];
-        	double[] bpm_vector = new double[128/2];
-        	double[] bpm = new double[128];
+        	Complex[] a = new Complex[512];
+        	double[] absSignal = new double[512/2];
+        	double[] bpm_vector = new double[512/2];
+        	double[] bpm = new double[512];
         	double pre_bpm=0;
         	
         	
@@ -341,11 +343,11 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         			u=FFT.fft(a);
         			
         			
-        			double fps=128.0/time;  //FPS --> frame/seconds
+        			double fps=512.0/time;  //FPS --> frame/seconds
         			Log.i(TAG, "pruebaaa:" +fps);
-        			for(int z=0;z<128;z++){
+        			for(int z=0;z<512;z++){
         				
-                		pre_bpm=60.0*z*(fps/128.0);     // 60*(N(i))*(FPS/N)
+                		pre_bpm=60.0*z*(fps/512.0);     // 60*(N(i))*(FPS/N)
                 		
                 		spam.add(pre_bpm);
                 		
@@ -355,7 +357,7 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         			
         			//Log.i(TAG, "POSPIK:" +60*bpm[15]+"");
         		
-        			for(int m = 0; m < (128/2); m++)
+        			for(int m = 0; m < (512/2); m++)
         				{	
         				 
         					absSignal[m] = Math.sqrt(Math.pow(u[m].re(), 2) + Math.pow(u[m].im(), 2));
@@ -365,18 +367,21 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
         						bpm_vector[m]=absSignal[m];
         						Log.i(TAG, "FFTValores:"+absSignal[m]+"");
         						
-        						if(absSignal[m]>mMaxFFTSample && m>8 && m<20){
-        		                 mMaxFFTSample = absSignal[m];
+        						if(bpm_vector[m]>mMaxFFTSample && m>25 && m<80){
+        		                 mMaxFFTSample = bpm_vector[m];
         		                 mPeakPos = m;
         		                 
         		             } 
         						
         					absSignal[m]=0;
+        					//bpm_vector[m]=0;
         				}
         			
         			Log.i(TAG, "BPM:" +spam.elementAt(mPeakPos)+"");
+        			double bpm_final=spam.elementAt(mPeakPos).intValue();
+        			bpm_final1=bpm_final;
+        			showToast(null);
         			
-        	        
         	        
         			mPeakPos=0;
         			mMaxFFTSample=0;
@@ -432,10 +437,24 @@ public class FdActivity extends Activity implements CvCameraViewListener2 {
     }
 
     private void setMinFaceSize(float faceSize) {
+    	
         mRelativeFaceSize = faceSize;
         mAbsoluteFaceSize = 0;
     }
+    
+    
+    public void showToast(final String toast)
+	{
+    	
+	    runOnUiThread(new Runnable() {
+	        public void run()
+	        {
+	            Toast.makeText(FdActivity.this, "BPM: "+bpm_final1, Toast.LENGTH_SHORT).show();
+	        }
+	    });
+	}
 
+    
     private void setDetectorType(int type) {
         if (mDetectorType != type) {
             mDetectorType = type;
